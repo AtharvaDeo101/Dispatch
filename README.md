@@ -34,6 +34,10 @@ service.
 ### AI
 
 - **Email generation** — describe the email; the model returns a subject and full body.
+- **Remembered names** — drafts stop coming back with `[Your Name]` and `[Manager's Name]`. Every email
+  you send teaches the app two things: the greeting line names the recipient, the sign-off names you.
+  Both are stored per Google account and filled into later drafts to the same address, automatically.
+  Whatever the app has learned is listed and editable under Settings → Names.
 - **Summarization** — brief (2–3 sentences) or detailed (key points, action items, sentiment) summaries
   of any open message, plus a dedicated `/summarize` page.
 - Powered by `meta-llama/Llama-3.1-8B-Instruct` through the Hugging Face Inference API.
@@ -59,6 +63,7 @@ the other tabs get the full width.
 
 | Group | Options |
 |---|---|
+| Names | Your name, plus every recipient the app has learned a name for — both editable, so a bad capture is one correction away |
 | Display | Language (English), font family (System / Lato / Roboto / Georgia), font size (Browser / Small / Medium / Large) |
 | Theme | Appearance (light / dark), theme colour, left panel colour |
 | Notifications | New-email alert on/off, sound, volume, silent hours with a from/to window |
@@ -94,9 +99,14 @@ the other tabs get the full width.
    server-side Flask session cookie. Expired access tokens refresh automatically.
 2. **Read** — the frontend calls the Flask API, which calls the Gmail API with those credentials. Message
    bodies are walked part-by-part, base64url-decoded, and HTML is converted to text for the summarizer.
-3. **Write** — a prompt goes to the Hugging Face model; the returned draft can be edited, previewed,
-   saved as a Gmail draft, sent, or scheduled.
-4. **Persist** — folders, stored emails, scheduled sends and user settings live in PostgreSQL. Read-later
+3. **Write** — a prompt goes to the Hugging Face model, along with any names already known for you and
+   the chosen recipient. Placeholders the model emits anyway are substituted afterwards, so the names
+   land whether or not it followed instructions. The returned draft can be edited, previewed, saved as a
+   Gmail draft, sent, or scheduled.
+4. **Learn** — on send, the greeting and sign-off of the outgoing message are parsed for names and stored
+   against your account. Generic openings (`Dear Team,`) and bare sign-offs (`Best regards,`) are rejected,
+   so nothing meaningless gets remembered.
+5. **Persist** — folders, stored emails, scheduled sends and user settings live in PostgreSQL. Read-later
    flags, folder assignments for Gmail messages, to-do lists and notes live in browser localStorage.
 
 ---
@@ -121,9 +131,10 @@ backend/
   main.py            app factory, config, CORS, session, table creation
   OAuth.py           Google OAuth (PKCE), /me, /logout, Gmail service helper
   email_service.py   all mail, folder, schedule and settings endpoints + LLM helpers
+  known_names.py     name parsing and placeholder filling (pure, self-checking)
   models.py          Folder, Email, ScheduledEmail, UserSettings
   db.py              SQLAlchemy engine and session factory
-  tests/             pytest suite (42 tests)
+  tests/             pytest suite (54 tests)
 frontend/app/
   page.tsx           landing page
   login/             sign-in screen
@@ -154,7 +165,7 @@ All endpoints require the session cookie (`credentials: "include"`) unless noted
 | POST | `/create_draft` | create a Gmail draft |
 | POST | `/trash_email/<id>` | move a message to Trash |
 | GET | `/list_labels` | Gmail labels |
-| POST | `/generate_email` | AI draft from a prompt |
+| POST | `/generate_email` | AI draft from a prompt (optional `to`, used to look up the recipient's name) |
 | POST | `/summarize_email` | brief or detailed summary |
 | GET/PATCH/DELETE | `/stored_emails[/<id>]` | rows in the local `emails` table |
 | GET/POST | `/folders` | list and create folders |
@@ -162,7 +173,8 @@ All endpoints require the session cookie (`credentials: "include"`) unless noted
 | GET/PUT | `/settings` | per-account preferences |
 
 `PUT /settings` validates every field before storing: unknown keys are dropped, colours must be
-`#rrggbb`, times must be `HH:MM`, volume is clamped to 0–1, and enums must match the offered options.
+`#rrggbb`, times must be `HH:MM`, volume is clamped to 0–1, enums must match the offered options, and a
+name must look like one (1–3 words, letters only, not a role word such as "Team" or "Regards").
 Updates are partial — send only what changed.
 
 ---
@@ -235,9 +247,11 @@ Enable the Gmail API and create an OAuth client (web application) with
 ```bash
 cd backend
 python -m pytest tests -q
+python known_names.py          # standalone self-check for the name parsing
 ```
 
-Covers the OAuth routes, mail endpoints, scheduling, and settings validation, merge and round-trip.
+Covers the OAuth routes, mail endpoints, scheduling, settings validation/merge/round-trip, and the
+send-then-generate loop that proves a learned name reaches the next draft.
 
 ---
 
@@ -247,6 +261,9 @@ Covers the OAuth routes, mail endpoints, scheduling, and settings validation, me
   frontend. Move the drain to a worker (cron or Celery beat hitting a `/run_due` endpoint) if sends must
   fire with the app closed.
 - **Notification sound needs an open tab** — no service worker, no push notifications.
+- **Names are learned from sent mail only, and only from a `Dear X,` opening or a signed sign-off.**
+  Drafts teach nothing (half-finished mail would teach garbage), and your own name is captured once
+  rather than overwritten, so a one-off alias signature cannot replace it. Both are editable in Settings.
 - **To-do lists, notes, read-later flags and folder assignments are browser-local**, so they do not follow
   you between devices. Settings do, because they are stored per Google account.
 - **Display language is English only.** The setting is persisted and sets `<html lang>`, but no
@@ -260,4 +277,5 @@ Covers the OAuth routes, mail endpoints, scheduling, and settings validation, me
 - Per-user scoping for folders and stored emails.
 - Sync to-do lists and notes to Postgres alongside settings.
 - Tone options for generation, and smart reply suggestions.
+- Seed remembered names from Gmail contacts instead of waiting for the first send.
 - Real translations behind the language setting.
