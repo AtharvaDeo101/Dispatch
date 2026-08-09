@@ -17,6 +17,30 @@ lists and notes you can keep on screen while you work.
 Everything runs against your own Gmail mailbox — nothing is mirrored to a third-party mail
 service.
 
+```mermaid
+flowchart LR
+    subgraph Browser
+        UI["Next.js 16 · React 19<br/>mail client, to-do, notes"]
+        LS[("localStorage<br/>read-later · folders<br/>to-do · notes")]
+        UI <--> LS
+    end
+
+    subgraph Server
+        API["Flask API<br/>OAuth · mail · settings"]
+        DB[("PostgreSQL<br/>folders · emails<br/>schedules · settings")]
+        API <--> DB
+    end
+
+    subgraph External
+        G["Gmail API"]
+        HF["Hugging Face<br/>Llama-3.1-8B-Instruct"]
+    end
+
+    UI -->|"session cookie"| API
+    API -->|"OAuth 2.0 + PKCE"| G
+    API -->|"draft · summarize"| HF
+```
+
 ---
 
 ## Features
@@ -108,6 +132,32 @@ the other tabs get the full width.
    so nothing meaningless gets remembered.
 5. **Persist** — folders, stored emails, scheduled sends and user settings live in PostgreSQL. Read-later
    flags, folder assignments for Gmail messages, to-do lists and notes live in browser localStorage.
+
+### The write-and-learn loop
+
+```mermaid
+sequenceDiagram
+    participant U as You
+    participant F as Frontend
+    participant B as Flask
+    participant H as Hugging Face
+    participant G as Gmail
+    participant D as Postgres
+
+    U->>F: "ask Priya for the Q3 numbers"
+    F->>B: POST /generate_email {prompt, to}
+    B->>D: known names for me + this recipient
+    B->>H: prompt + names
+    H-->>B: subject + body
+    B->>B: fill any [Your Name] placeholders left over
+    B-->>F: draft
+    U->>F: edit, then Send (or Schedule)
+    F->>B: POST /send_email
+    B->>G: messages.send
+    B->>B: parse greeting + sign-off
+    B->>D: store learned names
+    Note over D: next draft to Priya<br/>already knows both names
+```
 
 ---
 
