@@ -258,11 +258,6 @@ NEXT_PUBLIC_API_BASE_URL=http://localhost:5000
 INTERNAL_API_BASE_URL=http://backend:5000
 ```
 
-### Google Cloud setup
-
-Enable the Gmail API and create an OAuth client (web application) with
-`http://localhost:5000/oauth2callback` as an authorized redirect URI. The app requests
-`gmail.send`, `gmail.readonly` and `gmail.modify`.
 
 ---
 
