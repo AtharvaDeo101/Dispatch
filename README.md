@@ -14,7 +14,7 @@ account, reads and sends real mail through the Gmail API, and adds the things a 
 missing: AI drafting, one-click summaries, scheduled sends, folders, and a side panel of to-do
 lists and notes you can keep on screen while you work.
 
-Everything runs against your own Gmail mailbox — nothing is mirrored to a third-party mail
+Everything runs against your own Gmail mailbox nothing is mirrored to a third-party mail
 service.
 
 ```mermaid
