@@ -14,7 +14,7 @@ account, reads and sends real mail through the Gmail API, and adds the things a 
 missing: AI drafting, one-click summaries, scheduled sends, folders, and a side panel of to-do
 lists and notes you can keep on screen while you work.
 
-Everything runs against your own Gmail mailbox — nothing is mirrored to a third-party mail
+Everything runs against your own Gmail mailbox nothing is mirrored to a third-party mail
 service.
 
 ```mermaid
@@ -133,33 +133,7 @@ the other tabs get the full width.
 5. **Persist** — folders, stored emails, scheduled sends and user settings live in PostgreSQL. Read-later
    flags, folder assignments for Gmail messages, to-do lists and notes live in browser localStorage.
 
-### The write-and-learn loop
 
-```mermaid
-sequenceDiagram
-    participant U as You
-    participant F as Frontend
-    participant B as Flask
-    participant H as Hugging Face
-    participant G as Gmail
-    participant D as Postgres
-
-    U->>F: "ask Priya for the Q3 numbers"
-    F->>B: POST /generate_email {prompt, to}
-    B->>D: known names for me + this recipient
-    B->>H: prompt + names
-    H-->>B: subject + body
-    B->>B: fill any [Your Name] placeholders left over
-    B-->>F: draft
-    U->>F: edit, then Send (or Schedule)
-    F->>B: POST /send_email
-    B->>G: messages.send
-    B->>B: parse greeting + sign-off
-    B->>D: store learned names
-    Note over D: next draft to Priya<br/>already knows both names
-```
-
----
 
 ## Tech stack
 
@@ -284,11 +258,6 @@ NEXT_PUBLIC_API_BASE_URL=http://localhost:5000
 INTERNAL_API_BASE_URL=http://backend:5000
 ```
 
-### Google Cloud setup
-
-Enable the Gmail API and create an OAuth client (web application) with
-`http://localhost:5000/oauth2callback` as an authorized redirect URI. The app requests
-`gmail.send`, `gmail.readonly` and `gmail.modify`.
 
 ---
 
