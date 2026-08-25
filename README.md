@@ -1,5 +1,3 @@
-# Dispatch
-
 <p align="center">
 <img
   src="https://github.com/AtharvaDeo101/MailAPT/blob/main/frontend/public/icon.png"
@@ -7,294 +5,157 @@
   width="100"
   height="100"></p>
 
-## Overview
+<h1 align="center">Dispatch</h1>
 
-**Dispatch** is an AI-assisted Gmail client. It signs in with your Google
-account, reads and sends real mail through the Gmail API, and adds the things a plain inbox is
-missing: AI drafting, one-click summaries, scheduled sends, folders, and a side panel of to-do
-lists and notes you can keep on screen while you work.
+<p align="center"><strong>Your inbox, minus the typing.</strong></p>
 
-Everything runs against your own Gmail mailbox nothing is mirrored to a third-party mail
-service.
-
-```mermaid
-flowchart LR
-    subgraph Browser
-        UI["Next.js 16 · React 19<br/>mail client, to-do, notes"]
-        LS[("localStorage<br/>read-later · folders<br/>to-do · notes")]
-        UI <--> LS
-    end
-
-    subgraph Server
-        API["Flask API<br/>OAuth · mail · settings"]
-        DB[("PostgreSQL<br/>folders · emails<br/>schedules · settings")]
-        API <--> DB
-    end
-
-    subgraph External
-        G["Gmail API"]
-        HF["Hugging Face<br/>Llama-3.1-8B-Instruct"]
-    end
-
-    UI -->|"session cookie"| API
-    API -->|"OAuth 2.0 + PKCE"| G
-    API -->|"draft · summarize"| HF
-```
+<p align="center">
+An AI mail client that writes your email, summarises what lands, sends on your
+schedule &mdash; and works directly on the Gmail account you already have.
+</p>
 
 ---
 
-## Features
+## The problem
 
-### Mail
+The average professional writes the same email a hundred times a year. *Chase
+the invoice. Follow up on the proposal. Ask for the numbers. Decline politely.*
+Then they read fifty more that could have been three lines.
 
-- **Full inbox client** — Inbox, Sent, Drafts, Scheduled, custom Folders and Gmail Tags (labels),
-  with search across sender and subject.
-- **Message list** — unread emphasis, sender avatars (Gravatar with letter fallback), snippets,
-  select-all with bulk delete / read-later / move, unread and read-later filters, newest/oldest sort.
-- **Reading pane** — sanitized HTML rendering (DOMPurify), move to folder, delete to Gmail Trash.
-- **Compose** — chat-style AI drafting, live preview, attachments, save as Gmail draft, send, or schedule.
-- **Read later** and **folder tags** for Gmail messages that have no row of their own.
+Every minute of that is a minute not spent on the work the email is about.
 
-### AI
+## What Dispatch does about it
 
-- **Email generation** — describe the email; the model returns a subject and full body.
-- **Remembered names** — drafts stop coming back with `[Your Name]` and `[Manager's Name]`. Every email
-  you send teaches the app two things: the greeting line names the recipient, the sign-off names you.
-  Both are stored per Google account and filled into later drafts to the same address, automatically.
-  Whatever the app has learned is listed and editable under Settings → Names.
-- **Summarization** — brief (2–3 sentences) or detailed (key points, action items, sentiment) summaries
-  of any open message, plus a dedicated `/summarize` page.
-- Powered by `meta-llama/Llama-3.1-8B-Instruct` through the Hugging Face Inference API.
+**Describe the email. Get the email.** Type "ask Priya for the Q3 numbers, we
+need them by Friday" and Dispatch returns a finished subject line and a
+complete, professional body, signed with your actual name. Edit it or send it.
 
-### Scheduling
+**Read the summary, not the thread.** Any message collapses to two sentences, or
+to a structured brief with key points, action items and sentiment. Decide in
+five seconds whether it needs you.
 
-- Pick a send time; the email is queued in Postgres with `pending` status.
-- Due sends are drained every 15s by whichever browser tab is open, then filed into Sent.
-- Pending schedules can be cancelled from the Scheduled section.
+**It learns who you write to.** Most AI drafting tools hand back `[Your Name]`
+and `[Manager's Name]` and leave you to fill in the blanks &mdash; every single
+time. Dispatch reads the greeting and sign-off of the mail you actually send,
+remembers both names against your account, and puts them in the next draft
+automatically. No setup, no contact import, no placeholders.
 
-### Side rail — Mail · Settings · To-do · Notes
+**Send it later.** Pick a time; the message queues and goes out on schedule,
+then files itself into Sent.
 
-The leftmost icon rail switches what fills the screen. The folder pane belongs to **Mail** only;
-the other tabs get the full width.
+**And it's still a real mail client.** Inbox, Sent, Drafts, custom folders,
+Gmail labels, search, bulk actions, read-later, attachments, light and dark
+themes. Plus a side rail of to-do lists and notes you can pin over the inbox
+while you work.
 
-- **Settings** (see below) — a full settings page, saved per Google account.
-- **To-do** — build lists out of blocks: header, sub-header, checklist (radio), bullet list, plain text.
-  Any list can be **stuck to the screen**: it becomes a draggable card that floats above the app, so
-  you can tick items off while working in the inbox. Cards remember their position and collapsed state.
-- **Notes** — create, edit and delete free-form notes from a card grid.
+---
 
-### Settings (persisted server-side)
+## Why it's different
 
-| Group | Options |
-|---|---|
-| Names | Your name, plus every recipient the app has learned a name for — both editable, so a bad capture is one correction away |
-| Display | Language (English), font family (System / Lato / Roboto / Georgia), font size (Browser / Small / Medium / Large) |
-| Theme | Appearance (light / dark), theme colour, left panel colour |
-| Notifications | New-email alert on/off, sound, volume, silent hours with a from/to window |
+| | Typical AI email add-on | Dispatch |
+|---|---|---|
+| Where your mail lives | copied into a third-party service | **stays in your Gmail** |
+| Names in drafts | `[Your Name]` placeholders, forever | learned from mail you send, filled in automatically |
+| Scope | a compose box bolted onto your inbox | a full mail client &mdash; read, write, file, schedule |
+| Sign-up | new account, new password | your Google account, standard OAuth |
+| Where it runs | someone else's servers | yours &mdash; self-host the whole thing |
 
-- The theme colour also tints the top navigation bar, and the panel colour tints the rail and folder pane
-  (mixed into the dark base when dark mode is on, so it stays readable).
-- Changes apply instantly and are saved 400 ms later — dragging the volume slider is one request, not fifty.
-- The top-bar light/dark toggle writes to the same stored setting, so the two can never disagree.
-
-### New-mail notification
-
-- While the app is open in a browser tab, the inbox is polled every 60 seconds — including when the tab
-  sits in the background — and a sound plays when message ids appear that weren't there before.
-- Ten choices: Chime, Ding, Pop, Bell, Tri-tone, Marimba, Bloop, Knock, Pulse, Silent. All are synthesised
-  with the Web Audio API, so no audio files ship with the app.
-- **Silent hours** mute alerts inside a time window (which may wrap past midnight). The Test button in
-  Settings plays regardless, so you can hear what you picked.
-- Limits by design: sound requires the site to be open — there is no service worker or push. A tab that has
-  never been interacted with stays silent, because browsers refuse audio until the page has been clicked.
-
-### Interface
-
-- Zoho/Gmail-style dense layout: navy top bar, icon rail, folder pane, message list, sliding detail panel.
-- Hover-expand feedback across the UI — rows grow from the left edge and lift above their neighbours,
-  buttons pop, all with `prefers-reduced-motion` respected.
-- Light and dark themes.
+Nothing is mirrored to an external mail service. Dispatch signs in with Google
+OAuth 2.0 + PKCE, holds credentials in a server-side session, and talks to the
+Gmail API on your behalf. You can run the entire stack on your own machine or
+your own infrastructure with one command.
 
 ---
 
 ## How it works
 
-1. **Sign in** — `/login` starts a Google OAuth 2.0 flow with PKCE; the callback stores credentials in a
-   server-side Flask session cookie. Expired access tokens refresh automatically.
-2. **Read** — the frontend calls the Flask API, which calls the Gmail API with those credentials. Message
-   bodies are walked part-by-part, base64url-decoded, and HTML is converted to text for the summarizer.
-3. **Write** — a prompt goes to the Hugging Face model, along with any names already known for you and
-   the chosen recipient. Placeholders the model emits anyway are substituted afterwards, so the names
-   land whether or not it followed instructions. The returned draft can be edited, previewed, saved as a
-   Gmail draft, sent, or scheduled.
-4. **Learn** — on send, the greeting and sign-off of the outgoing message are parsed for names and stored
-   against your account. Generic openings (`Dear Team,`) and bare sign-offs (`Best regards,`) are rejected,
-   so nothing meaningless gets remembered.
-5. **Persist** — folders, stored emails, scheduled sends and user settings live in PostgreSQL. Read-later
-   flags, folder assignments for Gmail messages, to-do lists and notes live in browser localStorage.
-
-
-
-## Tech stack
-
-**Frontend** — Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS v4 · TanStack Query
-(with localStorage persistence) · next-themes · lucide-react · DOMPurify · `next/font` for Lato and Roboto
-
-**Backend** — Python · Flask · Flask-Session (filesystem) · Flask-CORS · SQLAlchemy · PostgreSQL
-(psycopg2) · google-auth-oauthlib + google-api-python-client (Gmail API) · huggingface_hub ·
-BeautifulSoup
-
-**Infrastructure** — Docker Compose (backend, frontend, Postgres 16), Gunicorn in the production image
-
----
-
-## Project structure
-
-```
-backend/
-  main.py            app factory, config, CORS, session, table creation
-  OAuth.py           Google OAuth (PKCE), /me, /logout, Gmail service helper
-  email_service.py   all mail, folder, schedule and settings endpoints + LLM helpers
-  known_names.py     name parsing and placeholder filling (pure, self-checking)
-  models.py          Folder, Email, ScheduledEmail, UserSettings
-  db.py              SQLAlchemy engine and session factory
-  tests/             pytest suite (54 tests)
-frontend/app/
-  page.tsx           landing page
-  login/             sign-in screen
-  summarize/         standalone summarizer
-  generate/          the mail client
-    page.tsx         state, queries, notification + schedule drains
-    _components/     sidebar, list, compose, settings, to-do, notes
-    _lib/            api client, settings model, helpers
-docker-compose.yml
+```mermaid
+flowchart LR
+    A["You describe<br/>the email"] --> B["Dispatch drafts it<br/>with your names filled in"]
+    B --> C["You edit,<br/>then send or schedule"]
+    C --> D["Sent through<br/>your Gmail"]
+    D -.->|"learns the names<br/>you actually used"| B
 ```
 
----
+1. **Sign in** with Google. No new account, no new password.
+2. **Describe** the email you want, in a sentence.
+3. **Review** the draft &mdash; subject and body, already addressed correctly.
+4. **Send** now, or schedule it. Dispatch quietly gets better at step 2 each time.
 
-## API
-
-All endpoints require the session cookie (`credentials: "include"`) unless noted.
-
-| Method | Route | Purpose |
-|---|---|---|
-| GET | `/` | session status (no auth) |
-| GET | `/health` | health check (no auth) |
-| GET | `/login`, `/oauth2callback` | Google OAuth flow |
-| POST | `/logout` | clear the session |
-| GET | `/me` | Gmail profile of the signed-in user |
-| GET | `/list_emails?q=` | list messages for a Gmail query |
-| GET | `/get_email/<id>` | full message with plain and HTML bodies |
-| POST | `/send_email` | send (JSON or multipart with attachments) |
-| POST | `/create_draft` | create a Gmail draft |
-| POST | `/trash_email/<id>` | move a message to Trash |
-| GET | `/list_labels` | Gmail labels |
-| POST | `/generate_email` | AI draft from a prompt (optional `to`, used to look up the recipient's name) |
-| POST | `/summarize_email` | brief or detailed summary |
-| GET/PATCH/DELETE | `/stored_emails[/<id>]` | rows in the local `emails` table |
-| GET/POST | `/folders` | list and create folders |
-| GET/POST/DELETE | `/scheduled_emails[/<id>]` | schedule queue |
-| GET/PUT | `/settings` | per-account preferences |
-
-`PUT /settings` validates every field before storing: unknown keys are dropped, colours must be
-`#rrggbb`, times must be `HH:MM`, volume is clamped to 0–1, enums must match the offered options, and a
-name must look like one (1–3 words, letters only, not a role word such as "Team" or "Regards").
-Updates are partial — send only what changed.
+Incoming mail runs the same loop in reverse: open a message, get a summary, move on.
 
 ---
 
-## Getting started
+## What's in it
 
-### With Docker (recommended)
+**Mail** &mdash; Inbox, Sent, Drafts, Scheduled, custom folders and Gmail labels ·
+search across sender and subject · unread and read-later filters · bulk delete,
+move and mark · sender avatars · sanitised HTML reading pane · attachments ·
+save as Gmail draft · delete to Gmail Trash.
+
+**AI** &mdash; one-line prompt to full email · remembered sender and recipient
+names · brief or detailed summaries of any message · a standalone summariser
+page · powered by Llama 3.1 8B Instruct.
+
+**Scheduling** &mdash; pick a send time, cancel any time before it fires.
+
+**Workspace** &mdash; pinnable to-do lists built from headers, checklists and
+bullets, floating over the inbox as draggable cards · free-form notes ·
+everything remembered between sessions.
+
+**Made yours** &mdash; light and dark themes, theme and panel colours, four font
+families, four text sizes, ten notification sounds, silent hours. Saved against
+your Google account, so your setup follows you.
+
+---
+
+## Try it
 
 ```bash
-# backend/.env and frontend/.env.local must exist first — see below
 docker compose up --build
 ```
 
-Frontend on `http://localhost:3000`, backend on `http://localhost:5000`, Postgres on `5432`.
+Open `http://localhost:3000`. You'll need a Google Cloud OAuth client with the
+Gmail API enabled and a Hugging Face token &mdash; both free &mdash; plus
+`backend/.env` and `frontend/.env.local` filled in from the examples.
 
-### Local development
-
-```bash
-# backend
-cd backend
-pip install -r requirements.txt
-python main.py                      # http://localhost:5000
-
-# frontend
-cd frontend
-npm install
-npm run dev                         # http://localhost:3000
-```
-
-Tables are created automatically on backend start.
-
-### Environment
-
-`backend/.env`
-
-```env
-GOOGLE_CLIENT_ID=...
-GOOGLE_CLIENT_SECRET=...
-FLASK_SECRET_KEY=...
-HF_API_TOKEN=...
-FRONTEND_ORIGIN=http://localhost:3000
-FRONTEND_URL=http://localhost:3000/generate
-REDIRECT_URI=http://localhost:5000/oauth2callback
-# db.py reads DATABASE_URL directly at import time — it must be set
-DATABASE_URL=postgresql+psycopg2://mailapt:mailaptpassword@localhost:5432/mailapt
-POSTGRES_USER=mailapt
-POSTGRES_PASSWORD=mailaptpassword
-POSTGRES_DB=mailapt
-POSTGRES_HOST=localhost        # "db" inside Docker Compose
-POSTGRES_PORT=5432
-```
-
-`frontend/.env.local`
-
-```env
-NEXT_PUBLIC_API_BASE_URL=http://localhost:5000
-INTERNAL_API_BASE_URL=http://backend:5000
-```
-
+Full setup, environment variables and local (non-Docker) instructions:
+**[DEVELOPERS.md](DEVELOPERS.md)**.
 
 ---
 
-## Tests
+## Honest limits
 
-```bash
-cd backend
-python -m pytest tests -q
-python known_names.py          # standalone self-check for the name parsing
-```
+We'd rather you know before you install:
 
-Covers the OAuth routes, mail endpoints, scheduling, settings validation/merge/round-trip, and the
-send-then-generate loop that proves a learned name reaches the next draft.
+- **Scheduled sends and new-mail alerts need the app open in a tab.** The queue
+  is durable, but it's drained by the browser. A backend worker is on the roadmap.
+- **To-do lists, notes and read-later flags are stored in your browser**, so they
+  don't follow you between devices. Settings and learned names do.
+- **Single-tenant.** Folders and stored emails aren't scoped per user, so one
+  deployment is meant for one person or one trusted group.
+- **English only** for now.
 
 ---
 
-## Known limits
+## Built with
 
-- **Scheduled sends need an open tab.** The queue is persisted in Postgres, but it is drained by the
-  frontend. Move the drain to a worker (cron or Celery beat hitting a `/run_due` endpoint) if sends must
-  fire with the app closed.
-- **Notification sound needs an open tab** — no service worker, no push notifications.
-- **Names are learned from sent mail only, and only from a `Dear X,` opening or a signed sign-off.**
-  Drafts teach nothing (half-finished mail would teach garbage), and your own name is captured once
-  rather than overwritten, so a one-off alias signature cannot replace it. Both are editable in Settings.
-- **To-do lists, notes, read-later flags and folder assignments are browser-local**, so they do not follow
-  you between devices. Settings do, because they are stored per Google account.
-- **Display language is English only.** The setting is persisted and sets `<html lang>`, but no
-  translations exist yet.
-- **Folders and stored emails are not scoped per user** — the schema has no user table, so a shared
-  deployment would share them.
+Next.js 16 · React 19 · TypeScript · Tailwind CSS v4 · TanStack Query · Flask ·
+SQLAlchemy · PostgreSQL 16 · Gmail API · Hugging Face Inference · Docker Compose
 
-## Future improvements
+---
 
-- Backend worker for scheduled sends and server-side new-mail push.
-- Per-user scoping for folders and stored emails.
-- Sync to-do lists and notes to Postgres alongside settings.
-- Tone options for generation, and smart reply suggestions.
-- Seed remembered names from Gmail contacts instead of waiting for the first send.
-- Real translations behind the language setting.
+## What's next
+
+Backend worker for scheduled sends and true push notifications · per-user
+accounts · to-do lists and notes synced to the server · tone controls and smart
+replies · name seeding from Gmail contacts · real translations.
+
+---
+
+## For developers
+
+Architecture, request lifecycle, database and migration notes, test and lint
+commands, and the deliberate design constraints: **[DEVELOPERS.md](DEVELOPERS.md)**.
+
+Contributions welcome &mdash; open an issue before a large change.
