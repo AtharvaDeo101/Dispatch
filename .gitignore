@@ -3,3 +3,5 @@ flask_session_test
 .env
 __pycache__/
 *.pyc
+
+.env.example
