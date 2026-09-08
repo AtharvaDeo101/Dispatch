@@ -192,7 +192,7 @@ change behaviour rather than just credentials:
 | `REDIRECT_URI` | http vs https flips cookie security, debug mode, OAuth strictness |
 | `FLASK_SECRET_KEY` | required when https; random fallback in dev invalidates sessions on restart |
 | `ALLOWED_ORIGINS` / `FRONTEND_ORIGIN` | CORS allowlist, comma-separated |
-| `POSTGRES_HOST` | `db` inside compose, `localhost` outside |
+| `DATABASE_URL` | full Postgres URL, read at import by `db.py`; percent-encode `@` etc. in the password |
 
 ---
 

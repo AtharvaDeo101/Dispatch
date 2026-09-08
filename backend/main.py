@@ -77,19 +77,6 @@ def create_app():
         HF_MODEL="meta-llama/Llama-3.1-8B-Instruct",
     )
 
-    # --- NEW: Database configuration (PostgreSQL) ---
-    # CRITICAL FIX: default host is "db" (Docker service name), not "localhost"
-    db_user = os.environ.get("POSTGRES_USER", "mailapt")
-    db_password = os.environ.get("POSTGRES_PASSWORD", "mailaptpassword")
-    db_host = os.environ.get("POSTGRES_HOST", "db")  # ← CHANGED from "localhost" to "db"
-    db_port = os.environ.get("POSTGRES_PORT", "5432")
-    db_name = os.environ.get("POSTGRES_DB", "mailapt")
-
-    app.config["DATABASE_URL"] = os.environ.get(
-        "DATABASE_URL",
-        f"postgresql+psycopg2://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}",
-    )
-
     # Make sure the session directory exists
     os.makedirs("./flask_session", exist_ok=True)
 
