@@ -6,6 +6,8 @@ import { ThemeToggle } from "@/components/theme-toggle";
 
 const playfair = "'Playfair Display', Georgia, serif";
 
+const API = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5000";
+
 export function Navigation() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -22,7 +24,7 @@ export function Navigation() {
     const checkAuth = async () => {
       setCheckingAuth(true);
       try {
-        const res = await fetch("http://localhost:5000/me", {
+        const res = await fetch(`${API}/me`, {
           credentials: "include",
         });
         if (res.ok) {
@@ -42,7 +44,7 @@ export function Navigation() {
 
   const handleLogout = async () => {
     try {
-      await fetch("http://localhost:5000/logout", {
+      await fetch(`${API}/logout`, {
         method: "POST",
         credentials: "include",
       });

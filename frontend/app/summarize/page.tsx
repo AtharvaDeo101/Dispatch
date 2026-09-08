@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-const API = "http://localhost:5000";
+const API = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5000";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
