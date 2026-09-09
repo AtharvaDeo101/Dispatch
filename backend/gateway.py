@@ -35,8 +35,13 @@ def _client():
 
 
 def _viewer():
-    """Cache identity: the session, so one user never sees another's mail."""
-    return getattr(session, "sid", None) or _client()
+    """Cache identity: the signed-in account, so one user never sees another's.
+
+    Keying on the session id alone was not enough: /logout clears the session
+    data but keeps the same id, so signing in as a second Google account on the
+    same browser inherited the first account's cached inbox for the TTL.
+    """
+    return session.get("email_address") or getattr(session, "sid", None) or _client()
 
 
 def _retry_after(client, path):

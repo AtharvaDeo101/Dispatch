@@ -37,9 +37,14 @@ def client(app):
 
 @pytest.fixture
 def login():
-    """Give a client the session the gateway requires: login(client)."""
+    """Give a client the session the app requires: login(client[, address]).
 
-    def _login(client):
+    Rows in `emails` and `folders` are keyed by Gmail address, so a signed-in
+    session needs one. `email_address` is the cache _current_email_address()
+    reads before it would otherwise call the Gmail API.
+    """
+
+    def _login(client, address="user@example.com"):
         with client.session_transaction() as sess:
             sess["credentials"] = {
                 "token": "t",
@@ -49,5 +54,6 @@ def login():
                 "client_secret": "s",
                 "scopes": [],
             }
+            sess["email_address"] = address
 
     return _login

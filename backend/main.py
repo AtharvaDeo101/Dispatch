@@ -109,8 +109,26 @@ def create_app():
                 conn.execute(text(
                     "ALTER TABLE emails"
                     " ADD COLUMN IF NOT EXISTS gmail_message_id VARCHAR(255),"
-                    " ADD COLUMN IF NOT EXISTS gmail_draft_id VARCHAR(255)"
+                    " ADD COLUMN IF NOT EXISTS gmail_draft_id VARCHAR(255),"
+                    " ADD COLUMN IF NOT EXISTS owner VARCHAR(255)"
                 ))
+                conn.execute(text(
+                    "ALTER TABLE folders ADD COLUMN IF NOT EXISTS owner VARCHAR(255)"
+                ))
+                # folder names went from globally unique to unique per account;
+                # the old constraint would stop two users both having "Work"
+                conn.execute(text(
+                    "ALTER TABLE folders DROP CONSTRAINT IF EXISTS folders_name_key"
+                ))
+                conn.execute(text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS folders_owner_name_key"
+                    " ON folders (owner, name)"
+                ))
+                for table in ("emails", "folders"):
+                    conn.execute(text(
+                        f"CREATE INDEX IF NOT EXISTS ix_{table}_owner"
+                        f" ON {table} (owner)"
+                    ))
 
     # Health check endpoint
     @app.get("/health")

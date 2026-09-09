@@ -108,6 +108,7 @@ class TestGenerateEmailRoute:
     def test_generate_missing_prompt(self, client):
         with client.session_transaction() as sess:
             sess["credentials"] = {"token": "t"}
+            sess["email_address"] = "user@example.com"
         assert client.post("/generate_email", json={}).status_code == 400
 
     @patch("email_service.generate_with_api")
@@ -115,6 +116,7 @@ class TestGenerateEmailRoute:
         mock_gen.return_value = "Subject: Meeting\n\nDear John,\n\nLet's meet.\n\nBest,\nMe"
         with client.session_transaction() as sess:
             sess["credentials"] = {"token": "t"}
+            sess["email_address"] = "user@example.com"
         response = client.post("/generate_email", json={"prompt": "schedule a meeting"})
         assert response.status_code == 200
         data = json.loads(response.data)
@@ -126,7 +128,13 @@ class TestGenerateEmailRoute:
         mock_gen.side_effect = Exception("API down")
         with client.session_transaction() as sess:
             sess["credentials"] = {"token": "t"}
-        assert client.post("/generate_email", json={"prompt": "hi"}).status_code == 500
+            sess["email_address"] = "user@example.com"
+        response = client.post("/generate_email", json={"prompt": "hi"})
+        assert response.status_code == 500
+        # the exception text stays in the logs; a 500 body that echoes it hands
+        # out SQL fragments and file paths
+        assert "API down" not in response.get_data(as_text=True)
+        assert json.loads(response.data)["error"] == "internal error"
 
 
 class TestRemembersNames:
@@ -216,6 +224,7 @@ class TestSummarizeEmailRoute:
     def test_summarize_missing_content(self, client):
         with client.session_transaction() as sess:
             sess["credentials"] = {"token": "t"}
+            sess["email_address"] = "user@example.com"
         assert client.post("/summarize_email", json={}).status_code == 400
 
     @patch("email_service.summarize_with_api")
@@ -223,6 +232,7 @@ class TestSummarizeEmailRoute:
         mock_sum.return_value = "This is about a meeting."
         with client.session_transaction() as sess:
             sess["credentials"] = {"token": "t"}
+            sess["email_address"] = "user@example.com"
         response = client.post("/summarize_email", json={"content": "Long email...", "type": "brief"})
         assert response.status_code == 200
         data = json.loads(response.data)

@@ -198,7 +198,10 @@ def _parse_http_error(e: HttpError):
     except Exception:
         reason = ""
 
-    return status_code, reason or str(e) or "Google API request failed"
+    # `reason` is Google's own message ("Invalid to header") and is worth
+    # showing. str(e) is the HttpError repr, which carries the full request URI
+    # — a generic fallback instead.
+    return status_code, reason or "Google API request failed"
 
 
 # ---------- DB helper ----------
@@ -206,6 +209,29 @@ def _parse_http_error(e: HttpError):
 def get_db_session():
     """Simple helper to get a SQLAlchemy session; caller must close it."""
     return SessionLocal()
+
+
+def _server_error(where, e):
+    """Log the detail, hand the client nothing that describes our internals.
+
+    str(e) on an unexpected exception carries SQL fragments, file paths and
+    library internals; the traceback belongs in the logs, not in the response.
+    """
+    current_app.logger.error(f"{where} error: {e}", exc_info=True)
+    return jsonify({"error": "internal error"}), 500
+
+
+def _require_owner():
+    """The account owning every row this request may touch, or a 401 to return.
+
+    Stricter than checking for `credentials` in the session: rows are keyed by
+    Gmail address, so a session we cannot resolve to an address must not be
+    allowed to read or write any of them.
+    """
+    address = _current_email_address()
+    if not address:
+        return None, (jsonify({"error": "not_authenticated"}), 401)
+    return address, None
 
 
 # ---------- Gmail send + DB store ----------
@@ -262,9 +288,12 @@ def send_email():
         attachments_count = len(uploaded_files)
 
         # --- NEW: store sent email in Postgres ---
+        account = _current_email_address()
+
         db = get_db_session()
         try:
             email_row = EmailModel(
+                owner=account,
                 subject=subject,
                 body=body,
                 to_address=to,
@@ -285,7 +314,6 @@ def send_email():
 
         # a sent email is the only place we see the names the user actually
         # wanted; remember them so the next generated draft fills itself in
-        account = _current_email_address()
         if account:
             _remember_names(account, _sole_address(to), body)
 
@@ -303,8 +331,7 @@ def send_email():
         return jsonify({"error": reason, "status": status_code}), status_code
 
     except Exception as e:
-        current_app.logger.error(f"send_email error: {e}", exc_info=True)
-        return jsonify({"error": str(e)}), 500
+        return _server_error("send_email", e)
 
 
 # ---------- Gmail list (unchanged, still from Gmail) ----------
@@ -424,8 +451,7 @@ def list_emails():
         return jsonify({"error": reason, "status": status_code}), status_code
 
     except Exception as e:
-        current_app.logger.error(f"list_emails error: {e}", exc_info=True)
-        return jsonify({"error": str(e)}), 500
+        return _server_error("list_emails", e)
 
 
 # ---------- Gmail get (unchanged) ----------
@@ -518,8 +544,7 @@ def get_email(email_id):
         return jsonify({"error": reason, "status": status_code}), status_code
 
     except Exception as e:
-        current_app.logger.error(f"get_email error: {e}", exc_info=True)
-        return jsonify({"error": str(e)}), 500
+        return _server_error("get_email", e)
 
 
 # ---------- Gmail draft + DB store ----------
@@ -556,6 +581,7 @@ def create_draft():
         db = get_db_session()
         try:
             email_row = EmailModel(
+                owner=_current_email_address(),
                 subject=subject,
                 body=body,
                 to_address=to,
@@ -583,8 +609,7 @@ def create_draft():
         return jsonify({"error": reason, "status": status_code}), status_code
 
     except Exception as e:
-        current_app.logger.error(f"create_draft error: {e}", exc_info=True)
-        return jsonify({"error": str(e)}), 500
+        return _server_error("create_draft", e)
 
 
 # ---------- Gmail labels (unchanged) ----------
@@ -605,15 +630,17 @@ def list_labels():
         return jsonify({"error": reason, "status": status_code}), status_code
 
     except Exception as e:
-        current_app.logger.error(f"list_labels error: {e}", exc_info=True)
-        return jsonify({"error": str(e)}), 500
+        return _server_error("list_labels", e)
 
 
 
 @email_bp.route("/generate_email", methods=["POST"])
 def generate_email():
-    if "credentials" not in session:
-        return jsonify({"error": "not_authenticated"}), 401
+    # the draft this stores is keyed by account, so refuse rather than write a
+    # row with no owner that its author would never see again
+    account, denied = _require_owner()
+    if denied:
+        return denied
 
     data = request.get_json() or {}
     prompt = data.get("prompt")
@@ -624,8 +651,7 @@ def generate_email():
         return jsonify({"error": "prompt is required"}), 400
 
     try:
-        account = _current_email_address()
-        settings = _load_settings(account) if account else _merged_settings(None)
+        settings = _load_settings(account)
         sender = settings["profile"].get("name") or None
         recipient = settings["contacts"].get(to_address) if to_address else None
 
@@ -661,6 +687,7 @@ def generate_email():
         db = get_db_session()
         try:
             email_row = EmailModel(
+                owner=account,
                 subject=subject,
                 body=body,
                 to_address=to_address or "",  # empty until the user picks one
@@ -682,8 +709,7 @@ def generate_email():
         return jsonify({"subject": subject, "body": body, "raw_output": text})
 
     except Exception as e:
-        current_app.logger.error(f"generate_email error: {e}", exc_info=True)
-        return jsonify({"error": str(e)}), 500
+        return _server_error("generate_email", e)
 
 
 
@@ -712,8 +738,7 @@ def summarize_email():
         )
 
     except Exception as e:
-        current_app.logger.error(f"summarize_email error: {e}", exc_info=True)
-        return jsonify({"error": str(e)}), 500
+        return _server_error("summarize_email", e)
 
 
 # ---------- NEW: list stored emails from Postgres ----------
@@ -726,15 +751,16 @@ def stored_emails():
       - is_draft=true/false
       - folder_id=<int>
     """
-    if "credentials" not in session:
-        return jsonify({"error": "not_authenticated"}), 401
+    account, denied = _require_owner()
+    if denied:
+        return denied
 
     is_draft_param = request.args.get("is_draft")
     folder_id = request.args.get("folder_id", type=int)
 
     db = get_db_session()
     try:
-        query = db.query(EmailModel)
+        query = db.query(EmailModel).filter(EmailModel.owner == account)
 
         if is_draft_param is not None:
             if is_draft_param.lower() in ("true", "1", "yes"):
@@ -766,8 +792,7 @@ def stored_emails():
         return jsonify({"emails": result})
 
     except Exception as e:
-        current_app.logger.error(f"stored_emails error: {e}", exc_info=True)
-        return jsonify({"error": str(e)}), 500
+        return _server_error("stored_emails", e)
 
     finally:
         db.close()
@@ -792,14 +817,19 @@ def _serialize_stored_email(e):
 @email_bp.route("/stored_emails/<int:email_id>", methods=["PATCH"])
 def update_stored_email(email_id):
     """Edit a stored draft, or move any stored email into a folder."""
-    if "credentials" not in session:
-        return jsonify({"error": "not_authenticated"}), 401
+    account, denied = _require_owner()
+    if denied:
+        return denied
 
     data = request.get_json() or {}
 
     db = get_db_session()
     try:
-        row = db.query(EmailModel).filter(EmailModel.id == email_id).first()
+        row = (
+            db.query(EmailModel)
+            .filter(EmailModel.id == email_id, EmailModel.owner == account)
+            .first()
+        )
         if row is None:
             return jsonify({"error": "email not found"}), 404
 
@@ -811,7 +841,20 @@ def update_stored_email(email_id):
             row.to_address = (data.get("to_address") or "")[:255]
         if "folder_id" in data:
             folder_id = data.get("folder_id")
-            row.folder_id = int(folder_id) if folder_id is not None else None
+            if folder_id is None:
+                row.folder_id = None
+            else:
+                # otherwise a caller could file their mail into someone else's
+                # folder just by naming its id
+                folder = (
+                    db.query(FolderModel)
+                    .filter(FolderModel.id == int(folder_id),
+                            FolderModel.owner == account)
+                    .first()
+                )
+                if folder is None:
+                    return jsonify({"error": "folder not found"}), 404
+                row.folder_id = folder.id
 
         row.updated_at = datetime.utcnow()
         db.commit()
@@ -821,8 +864,7 @@ def update_stored_email(email_id):
 
     except Exception as e:
         db.rollback()
-        current_app.logger.error(f"update_stored_email error: {e}", exc_info=True)
-        return jsonify({"error": str(e)}), 500
+        return _server_error("update_stored_email", e)
 
     finally:
         db.close()
@@ -830,12 +872,17 @@ def update_stored_email(email_id):
 
 @email_bp.route("/stored_emails/<int:email_id>", methods=["DELETE"])
 def delete_stored_email(email_id):
-    if "credentials" not in session:
-        return jsonify({"error": "not_authenticated"}), 401
+    account, denied = _require_owner()
+    if denied:
+        return denied
 
     db = get_db_session()
     try:
-        row = db.query(EmailModel).filter(EmailModel.id == email_id).first()
+        row = (
+            db.query(EmailModel)
+            .filter(EmailModel.id == email_id, EmailModel.owner == account)
+            .first()
+        )
         if row is None:
             return jsonify({"error": "email not found"}), 404
 
@@ -851,8 +898,7 @@ def delete_stored_email(email_id):
 
     except Exception as e:
         db.rollback()
-        current_app.logger.error(f"delete_stored_email error: {e}", exc_info=True)
-        return jsonify({"error": str(e)}), 500
+        return _server_error("delete_stored_email", e)
 
     finally:
         db.close()
@@ -880,8 +926,7 @@ def trash_email(email_id):
         return jsonify({"error": reason, "status": status_code}), status_code
 
     except Exception as e:
-        current_app.logger.error(f"trash_email error: {e}", exc_info=True)
-        return jsonify({"error": str(e)}), 500
+        return _server_error("trash_email", e)
 
 
 # ---------- scheduled sends ----------
@@ -892,15 +937,17 @@ def trash_email(email_id):
 
 @email_bp.route("/scheduled_emails", methods=["GET"])
 def list_scheduled_emails():
-    if "credentials" not in session:
-        return jsonify({"error": "not_authenticated"}), 401
+    account, denied = _require_owner()
+    if denied:
+        return denied
 
     db = get_db_session()
     try:
         rows = (
             db.query(ScheduledEmailModel, EmailModel)
             .join(EmailModel, ScheduledEmailModel.email_id == EmailModel.id)
-            .filter(ScheduledEmailModel.status == "pending")
+            .filter(ScheduledEmailModel.status == "pending",
+                    EmailModel.owner == account)
             .order_by(ScheduledEmailModel.scheduled_for.asc())
             .all()
         )
@@ -922,8 +969,7 @@ def list_scheduled_emails():
         return jsonify({"scheduled": result})
 
     except Exception as e:
-        current_app.logger.error(f"list_scheduled_emails error: {e}", exc_info=True)
-        return jsonify({"error": str(e)}), 500
+        return _server_error("list_scheduled_emails", e)
 
     finally:
         db.close()
@@ -931,8 +977,9 @@ def list_scheduled_emails():
 
 @email_bp.route("/scheduled_emails", methods=["POST"])
 def create_scheduled_email():
-    if "credentials" not in session:
-        return jsonify({"error": "not_authenticated"}), 401
+    account, denied = _require_owner()
+    if denied:
+        return denied
 
     data = request.get_json() or {}
     to = (data.get("to") or "").strip()
@@ -957,6 +1004,7 @@ def create_scheduled_email():
     db = get_db_session()
     try:
         mail = EmailModel(
+            owner=account,
             subject=subject[:255],
             body=body,
             to_address=to[:255],
@@ -992,8 +1040,7 @@ def create_scheduled_email():
 
     except Exception as e:
         db.rollback()
-        current_app.logger.error(f"create_scheduled_email error: {e}", exc_info=True)
-        return jsonify({"error": str(e)}), 500
+        return _server_error("create_scheduled_email", e)
 
     finally:
         db.close()
@@ -1002,16 +1049,21 @@ def create_scheduled_email():
 @email_bp.route("/scheduled_emails/<int:scheduled_id>", methods=["DELETE"])
 def delete_scheduled_email(scheduled_id):
     """Cancel a pending schedule, or clear it once the send has gone out."""
-    if "credentials" not in session:
-        return jsonify({"error": "not_authenticated"}), 401
+    account, denied = _require_owner()
+    if denied:
+        return denied
 
     sent = request.args.get("sent", "").lower() in ("true", "1", "yes")
 
     db = get_db_session()
     try:
+        # a schedule is owned by the email it points at, so the join is what
+        # keeps one account from cancelling another's pending send
         sched = (
             db.query(ScheduledEmailModel)
-            .filter(ScheduledEmailModel.id == scheduled_id)
+            .join(EmailModel, ScheduledEmailModel.email_id == EmailModel.id)
+            .filter(ScheduledEmailModel.id == scheduled_id,
+                    EmailModel.owner == account)
             .first()
         )
         if sched is None:
@@ -1040,8 +1092,7 @@ def delete_scheduled_email(scheduled_id):
 
     except Exception as e:
         db.rollback()
-        current_app.logger.error(f"delete_scheduled_email error: {e}", exc_info=True)
-        return jsonify({"error": str(e)}), 500
+        return _server_error("delete_scheduled_email", e)
 
     finally:
         db.close()
@@ -1049,9 +1100,18 @@ def delete_scheduled_email(scheduled_id):
 
 @email_bp.route("/folders", methods=["GET"])
 def list_folders():
+    account, denied = _require_owner()
+    if denied:
+        return denied
+
     db = get_db_session()
     try:
-        folders = db.query(FolderModel).order_by(FolderModel.name.asc()).all()
+        folders = (
+            db.query(FolderModel)
+            .filter(FolderModel.owner == account)
+            .order_by(FolderModel.name.asc())
+            .all()
+        )
         result = [
             {
                 "id": f.id,
@@ -1062,14 +1122,17 @@ def list_folders():
         ]
         return jsonify({"folders": result})
     except Exception as e:
-        current_app.logger.error(f"list_folders error: {e}", exc_info=True)
-        return jsonify({"error": str(e)}), 500
+        return _server_error("list_folders", e)
     finally:
         db.close()
 
 
 @email_bp.route("/folders", methods=["POST"])
 def create_folder():
+    account, denied = _require_owner()
+    if denied:
+        return denied
+
     data = request.get_json() or {}
     name = (data.get("name") or "").strip()
     description = data.get("description")
@@ -1079,12 +1142,16 @@ def create_folder():
 
     db = get_db_session()
     try:
-        # unique by name
-        existing = db.query(FolderModel).filter(FolderModel.name == name).first()
+        # unique by name within the account, not across all of them
+        existing = (
+            db.query(FolderModel)
+            .filter(FolderModel.name == name, FolderModel.owner == account)
+            .first()
+        )
         if existing:
             return jsonify({"error": "folder with this name already exists"}), 409
 
-        folder = FolderModel(name=name, description=description)
+        folder = FolderModel(owner=account, name=name, description=description)
         db.add(folder)
         db.commit()
         db.refresh(folder)
@@ -1099,8 +1166,7 @@ def create_folder():
 
     except Exception as e:
         db.rollback()
-        current_app.logger.error(f"create_folder error: {e}", exc_info=True)
-        return jsonify({"error": str(e)}), 500
+        return _server_error("create_folder", e)
 
     finally:
         db.close()
@@ -1339,8 +1405,7 @@ def get_settings():
         )
         return jsonify({"settings": _merged_settings(row.data if row else None)})
     except Exception as e:
-        current_app.logger.error(f"get_settings error: {e}", exc_info=True)
-        return jsonify({"error": str(e)}), 500
+        return _server_error("get_settings", e)
     finally:
         db.close()
 
@@ -1382,8 +1447,7 @@ def update_settings():
 
     except Exception as e:
         db.rollback()
-        current_app.logger.error(f"update_settings error: {e}", exc_info=True)
-        return jsonify({"error": str(e)}), 500
+        return _server_error("update_settings", e)
 
     finally:
         db.close()

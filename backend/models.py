@@ -1,14 +1,27 @@
 # backend/models.py
-from sqlalchemy import JSON, Column, Integer, String, Text, Boolean, DateTime, ForeignKey
+from sqlalchemy import (
+    JSON, Column, Integer, String, Text, Boolean, DateTime, ForeignKey,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import relationship
 from db import Base
 from datetime import datetime
 
+# Every row in `emails` and `folders` belongs to one Gmail account, and every
+# query filters on it — without that these tables are shared across all users.
+# Nullable because the column was added to populated tables; rows predating it
+# have owner NULL and are visible to nobody, which is the safe way to fail.
+# ScheduledEmail deliberately has no owner of its own: it reaches ownership
+# through its email_id, so the two can never disagree.
+
 class Folder(Base):
     __tablename__ = "folders"
+    # names are unique per account, not globally — two users may both have "Work"
+    __table_args__ = (UniqueConstraint("owner", "name", name="folders_owner_name_key"),)
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(255), unique=True, nullable=False)
+    owner = Column(String(255), nullable=True, index=True)
+    name = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
 
     emails = relationship("Email", back_populates="folder")
@@ -17,6 +30,7 @@ class Email(Base):
     __tablename__ = "emails"
 
     id = Column(Integer, primary_key=True, index=True)
+    owner = Column(String(255), nullable=True, index=True)
     subject = Column(String(255), nullable=False)
     body = Column(Text, nullable=False)
     to_address = Column(String(255), nullable=False)
