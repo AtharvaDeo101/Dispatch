@@ -117,8 +117,15 @@ def oauth2callback():
     code_verifier = session.pop("code_verifier")
     flow = build_google_flow(state=session["state"])
 
+    # Rebuild the callback URL from REDIRECT_URI rather than request.url: behind
+    # Render's TLS-terminating proxy gunicorn reports the scheme as http, and
+    # oauthlib refuses a plaintext authorization_response once
+    # OAUTHLIB_INSECURE_TRANSPORT is off. REDIRECT_URI is the exact URI
+    # registered with Google, so it matches flow.redirect_uri by construction.
     flow.fetch_token(
-        authorization_response=request.url.replace("https://", "http://", 1),
+        authorization_response=(
+            f"{current_app.config['REDIRECT_URI']}?{request.query_string.decode()}"
+        ),
         code_verifier=code_verifier,
     )
 
