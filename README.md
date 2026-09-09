@@ -107,3 +107,93 @@ everything remembered between sessions.
 families, four text sizes, ten notification sounds, silent hours. Saved against
 your Google account, so your setup follows you.
 
+
+---
+
+## Run it yourself
+
+You need Docker, a Google Cloud OAuth client, and a Hugging Face token with
+access to Llama 3.1 8B Instruct.
+
+**1. Google OAuth.** In Google Cloud Console create an OAuth 2.0 Web client,
+enable the Gmail API, and add `http://localhost:5000/oauth2callback` as an
+authorised redirect URI. The app requests `gmail.send`, `gmail.readonly` and
+`gmail.modify`.
+
+**2. Environment files.** Three of them:
+
+`.env` in the repo root — Postgres credentials for the `db` service:
+
+```bash
+POSTGRES_USER=dispatch
+POSTGRES_PASSWORD=change-me
+POSTGRES_DB=dispatch
+```
+
+`backend/.env`:
+
+| Variable | What it is |
+|---|---|
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | from step 1 |
+| `REDIRECT_URI` | `http://localhost:5000/oauth2callback` |
+| `FRONTEND_URL` | where to land after sign-in, e.g. `http://localhost:3000/generate` |
+| `ALLOWED_ORIGINS` | comma-separated origins allowed to call the API, e.g. `http://localhost:3000` |
+| `DATABASE_URL` | `postgresql+psycopg2://dispatch:change-me@db:5432/dispatch` |
+| `FLASK_SECRET_KEY` | any long random string; it signs the session cookie |
+| `HF_API_TOKEN` | Hugging Face inference token |
+
+`frontend/.env.local`:
+
+```bash
+NEXT_PUBLIC_API_BASE_URL=http://localhost:5000
+INTERNAL_API_BASE_URL=http://backend:5000
+```
+
+`NEXT_PUBLIC_API_BASE_URL` is what the browser calls; `INTERNAL_API_BASE_URL` is
+what server-side rendering calls inside the Docker network.
+
+**3. Start it.**
+
+```bash
+docker compose up --build
+```
+
+Frontend on `http://localhost:3000`, API on `http://localhost:5000`, Postgres on
+`5432`. `GET /health` tells you the backend is up. Sessions live in a named
+volume, so a rebuild does not log you out.
+
+### Without Docker
+
+```bash
+# backend
+cd backend && pip install -r requirements.txt && python main.py
+
+# frontend
+cd frontend && pnpm install && pnpm dev
+```
+
+Point `DATABASE_URL` at a Postgres you are running yourself, and swap `db` for
+`localhost` in it.
+
+### Tests
+
+```bash
+pip install -r backend/requirements-dev.txt
+pytest
+```
+
+---
+
+## Built with
+
+**Frontend** — Next.js (App Router) and TypeScript, Tailwind CSS, Radix UI
+primitives, pnpm.
+
+**Backend** — Flask with server-side filesystem sessions, SQLAlchemy over
+Postgres, the Gmail API through `google-api-python-client`, Google OAuth 2.0 with
+PKCE, and Llama 3.1 8B Instruct via Hugging Face inference. Served by gunicorn.
+
+**Infrastructure** — Docker Compose runs frontend, backend and Postgres on one
+network. The backend runs a single gunicorn worker on purpose: its rate limiter
+and response cache are in-process, so scaling out means moving both to Redis
+first.
