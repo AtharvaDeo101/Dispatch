@@ -13,7 +13,7 @@ import { DEFAULT_SETTINGS, type Settings } from "./settings";
 export const API =
   typeof window === "undefined"
     ? process.env.INTERNAL_API_BASE_URL || "http://backend:5000"
-    : process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5000";
+    : process.env.NEXT_PUBLIC_API_BASE_URL || "/api";
 
 // ----------------- MD5 + helpers (unchanged) -----------------
 

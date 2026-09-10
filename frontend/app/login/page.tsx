@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button"
 import Image from "next/image"
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5000"
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "/api"
 
 export default function LoginPage() {
   const handleGoogleLogin = () => {
