@@ -117,25 +117,9 @@ that.
 
 ---
 
-## How it works
 
-```mermaid
-flowchart LR
-    A["You describe<br/>the email"] --> B["Dispatch drafts it<br/>with your names filled in"]
-    B --> C["You edit,<br/>then send or schedule"]
-    C --> D["Sent through<br/>your Gmail"]
-    D -.->|"learns the names<br/>you actually used"| B
-```
 
-1. **Sign in** with Google. No new account, no new password.
-2. **Describe** the email you want, in a sentence.
-3. **Review** the draft &mdash; subject and body, already addressed correctly.
-4. **Send** now, or schedule it. Dispatch quietly gets better at step 2 each time.
 
-Incoming mail runs the same loop in reverse: open a message, read the summary,
-move on.
-
----
 
 ## What's in it
 
