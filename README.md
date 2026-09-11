@@ -35,13 +35,6 @@ to a structured brief with key points, action items and sentiment. Decide in
 five seconds whether it needs you.
 
 **It learns who you write to.** Most AI drafting tools hand back `[Your Name]`
-and `[Manager's Name]` and leave you to fill in the blanks &mdash; every single
-time. Dispatch reads the greeting and sign-off of the mail you actually send,
-remembers both names against your account, and puts them in the next draft
-automatically. No setup, no contact import, no placeholders.
-
-**Send it later.** Pick a time; the message queues and goes out on schedule,
-then files itself into Sent.
 
 **And it's still a real mail client.** Inbox, Sent, Drafts, custom folders,
 Gmail labels, search, bulk actions, read-later, attachments, light and dark
