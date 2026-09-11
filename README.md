@@ -254,7 +254,3 @@ primitives, pnpm.
 Postgres, the Gmail API through `google-api-python-client`, Google OAuth 2.0 with
 PKCE, and Llama 3.1 8B Instruct via Hugging Face inference. Served by gunicorn.
 
-**Infrastructure** — Docker Compose runs frontend, backend and Postgres on one
-network. The backend runs a single gunicorn worker on purpose: its rate limiter
-and response cache are in-process, so scaling out means moving both to Redis
-first.
