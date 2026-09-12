@@ -229,12 +229,5 @@ pytest
 
 ---
 
-## Built with
 
-**Frontend** — Next.js (App Router) and TypeScript, Tailwind CSS, Radix UI
-primitives, pnpm.
-
-**Backend** — Flask with server-side filesystem sessions, SQLAlchemy over
-Postgres, the Gmail API through `google-api-python-client`, Google OAuth 2.0 with
-PKCE, and Llama 3.1 8B Instruct via Hugging Face inference. Served by gunicorn.
 
