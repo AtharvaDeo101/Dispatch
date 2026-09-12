@@ -218,16 +218,7 @@ cd frontend && pnpm install && pnpm dev
 Point `DATABASE_URL` at a Postgres you are running yourself, and swap `db` for
 `localhost` in it.
 
-**Tests**
 
-```bash
-pip install -r backend/requirements-dev.txt
-pytest
-```
-
-</details>
-
----
 
 
 
