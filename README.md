@@ -205,9 +205,6 @@ Frontend on `http://localhost:3000`, API on `http://localhost:5000`, Postgres on
 `5432`. `GET /health` tells you the backend is up. Sessions live in a named
 volume, so a rebuild does not log you out.
 
-**Without Docker**
-
-```bash
 
 
 
