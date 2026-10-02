@@ -208,10 +208,7 @@ volume, so a rebuild does not log you out.
 **Without Docker**
 
 ```bash
-# backend
-cd backend && pip install -r requirements.txt && python main.py
 
-# frontend
 
 
 
