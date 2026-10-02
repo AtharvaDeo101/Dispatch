@@ -212,7 +212,7 @@ volume, so a rebuild does not log you out.
 cd backend && pip install -r requirements.txt && python main.py
 
 # frontend
-cd frontend && pnpm install && pnpm dev
+cd frontend && pnpm install && pnpm 
 
 
 
